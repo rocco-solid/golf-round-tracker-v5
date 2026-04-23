@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Golf Round Tracker v5</title>
+  <title>Golf Round Tracker v5.1</title>
   <meta name="description" content="A mobile-first golf round tracker with play mode, compact scorecard, round review, local JSON save/load, and CSV export." />
   <link rel="preconnect" href="https://api.fontshare.com">
   <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&f[]=cabinet-grotesk@500,700&display=swap" rel="stylesheet">
@@ -551,7 +551,7 @@
             </svg>
           </div>
           <div>
-            <h1>Round Tracker v5</h1>
+            <h1>Round Tracker v5.1</h1>
             <p id="topStatus">Play mode for fast round entry.</p>
           </div>
         </div>
@@ -635,6 +635,18 @@
         </section>
 
         <section class="panel">
+          <h3>Strike pattern</h3>
+          <p class="hint">Thin, fat, flush, heel, toe, and face-contact trends.</p>
+          <div class="bar-list" id="strikeBars"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Lie pattern</h3>
+          <p class="hint">Track whether misses or scores correlate with rough, sand, divots, and recovery lies.</p>
+          <div class="bar-list" id="lieBars"></div>
+        </section>
+
+        <section class="panel">
           <h3>Scoring by par</h3>
           <div class="analysis-grid" id="parBreakdown"></div>
         </section>
@@ -710,13 +722,19 @@
       fir: defaultPars[index] === 3 ? "n/a" : "",
       gir: "",
       teeMiss: "",
+      teeLie: "",
+      teeStrike: "",
       approachResult: "",
+      approachLie: "",
+      approachStrike: "",
       teeClub: "",
       teeDistance: "",
       approachClub: "",
       approachDistance: "",
       approachProximity: "",
       shortGameType: "",
+      shortGameLie: "",
+      shortGameStrike: "",
       shortGameDistance: "",
       recoveryClub: "",
       upDown: "",
@@ -725,7 +743,7 @@
     });
 
     const state = {
-      version: 5,
+      version: 5.1,
       activeHole: 0,
       dirty: false,
       metadata: {
@@ -768,6 +786,25 @@
         ["long", "Long", "warn"],
         ["left", "Left", "warn"],
         ["right", "Right", "warn"]
+      ],
+      lie: [
+        ["tee", "Tee", "info"],
+        ["fairway", "Fairway", "good"],
+        ["rough", "Rough", "warn"],
+        ["divot", "Divot", "bad"],
+        ["sand", "Sand", "warn"],
+        ["pine-straw", "Pine straw", "warn"],
+        ["hardpan", "Hardpan", "warn"],
+        ["recovery", "Recovery", "bad"]
+      ],
+      strike: [
+        ["flush", "Flush", "good"],
+        ["thin", "Thin", "warn"],
+        ["fat", "Fat", "bad"],
+        ["heel", "Heel", "warn"],
+        ["toe", "Toe", "warn"],
+        ["high-face", "High face", "warn"],
+        ["low-face", "Low face", "warn"]
       ],
       shortGameType: [
         ["none", "None", "good"],
@@ -1032,6 +1069,22 @@
       girBlock.appendChild(chipGroup("gir", options.gir));
       editor.appendChild(girBlock);
 
+      const teeLieBlock = quickBlock("Tee shot lie", "Where the tee shot finished.");
+      teeLieBlock.appendChild(chipGroup("teeLie", options.lie));
+      editor.appendChild(teeLieBlock);
+
+      const teeStrikeBlock = quickBlock("Tee shot strike", "How the contact felt.");
+      teeStrikeBlock.appendChild(chipGroup("teeStrike", options.strike));
+      editor.appendChild(teeStrikeBlock);
+
+      const approachLieBlock = quickBlock("Approach lie", "The lie you had for the approach shot.");
+      approachLieBlock.appendChild(chipGroup("approachLie", options.lie));
+      editor.appendChild(approachLieBlock);
+
+      const approachStrikeBlock = quickBlock("Approach strike", "How the approach contact felt.");
+      approachStrikeBlock.appendChild(chipGroup("approachStrike", options.strike));
+      editor.appendChild(approachStrikeBlock);
+
       const mistakeBlock = quickBlock("Primary mistake", "Tag the main reason a bad hole got away.");
       mistakeBlock.appendChild(chipGroup("mistake", options.mistake));
       editor.appendChild(mistakeBlock);
@@ -1047,6 +1100,8 @@
       advancedBody.appendChild(quickBlockWithContent("Tee club", clubGroup("teeClub")));
       advancedBody.appendChild(quickBlockWithContent("Approach club", clubGroup("approachClub")));
       advancedBody.appendChild(quickBlockWithContent("Short game", chipGroup("shortGameType", options.shortGameType)));
+      advancedBody.appendChild(quickBlockWithContent("Short-game lie", chipGroup("shortGameLie", options.lie)));
+      advancedBody.appendChild(quickBlockWithContent("Short-game strike", chipGroup("shortGameStrike", options.strike)));
       advancedBody.appendChild(inputField({ label: "Short-game distance", type: "number", value: hole.shortGameDistance, placeholder: "18", onInput: (v) => hole.shortGameDistance = v }));
       advancedBody.appendChild(quickBlockWithContent("Recovery club", clubGroup("recoveryClub")));
       advancedBody.appendChild(quickBlockWithContent("Up and down", chipGroup("upDown", options.upDown)));
@@ -1144,9 +1199,23 @@
         upDowns,
         teeDistances,
         approachProximities,
+        strikeCounts: countFields(["teeStrike", "approachStrike", "shortGameStrike"]),
+        lieCounts: countFields(["teeLie", "approachLie", "shortGameLie"]),
         completed: played.length,
-        logged: state.holes.filter((h) => h.score || h.putts || (h.fir && h.fir !== "n/a") || h.gir || h.note || h.teeClub || h.approachClub || h.mistake).length
+        logged: state.holes.filter((h) => h.score || h.putts || (h.fir && h.fir !== "n/a") || h.gir || h.note || h.teeClub || h.approachClub || h.mistake || h.teeLie || h.teeStrike || h.approachLie || h.approachStrike).length
       };
+    }
+
+    function countFields(keys) {
+      const counts = {};
+      state.holes.forEach((hole) => {
+        keys.forEach((key) => {
+          const value = hole[key];
+          if (!value) return;
+          counts[value] = (counts[value] || 0) + 1;
+        });
+      });
+      return counts;
     }
 
     function formatPct(num, den) {
@@ -1175,8 +1244,24 @@
       const stats = summaryStats();
       $("#reviewStats").innerHTML = statCards(stats).map(statCard).join("");
       renderMistakeBars();
+      renderPatternBars("strikeBars", stats.strikeCounts, "No strike/contact quality logged yet.");
+      renderPatternBars("lieBars", stats.lieCounts, "No lie data logged yet.");
       renderParBreakdown();
       renderCoachNotes();
+    }
+
+    function renderPatternBars(elementId, counts, emptyText) {
+      const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const max = Math.max(1, ...entries.map(([, value]) => value));
+      const el = $(`#${elementId}`);
+      if (!entries.length) {
+        el.innerHTML = `<div class="empty">${emptyText}</div>`;
+        return;
+      }
+      el.innerHTML = entries.map(([key, value]) => {
+        const label = key.split("-").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
+        return `<div class="bar-row"><div class="bar-label"><span>${label}</span><strong>${value}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${(value / max) * 100}%"></div></div></div>`;
+      }).join("");
     }
 
     function renderMistakeBars() {
@@ -1355,10 +1440,10 @@
         ["target", m.target],
         ["round_notes", m.notes],
         [],
-        ["hole", "par", "distance", "score", "to_par", "putts", "penalties", "fairway", "gir", "tee_miss", "approach_result", "tee_club", "tee_shot_went_yards", "approach_club", "approach_from_yards", "approach_to_hole_feet", "short_game_type", "short_game_distance", "recovery_club", "up_and_down", "primary_mistake", "decision_note"]
+        ["hole", "par", "distance", "score", "to_par", "putts", "penalties", "fairway", "gir", "tee_miss", "tee_lie", "tee_strike", "approach_result", "approach_lie", "approach_strike", "tee_club", "tee_shot_went_yards", "approach_club", "approach_from_yards", "approach_to_hole_feet", "short_game_type", "short_game_lie", "short_game_strike", "short_game_distance", "recovery_club", "up_and_down", "primary_mistake", "decision_note"]
       ];
       state.holes.forEach((h) => rows.push([
-        h.hole, h.par, h.distance, h.score, holeToPar(h) ?? "", h.putts, h.penalties, h.fir, h.gir, h.teeMiss, h.approachResult, h.teeClub, h.teeDistance, h.approachClub, h.approachDistance, h.approachProximity, h.shortGameType, h.shortGameDistance, h.recoveryClub, h.upDown, h.mistake, h.note
+        h.hole, h.par, h.distance, h.score, holeToPar(h) ?? "", h.putts, h.penalties, h.fir, h.gir, h.teeMiss, h.teeLie, h.teeStrike, h.approachResult, h.approachLie, h.approachStrike, h.teeClub, h.teeDistance, h.approachClub, h.approachDistance, h.approachProximity, h.shortGameType, h.shortGameLie, h.shortGameStrike, h.shortGameDistance, h.recoveryClub, h.upDown, h.mistake, h.note
       ]));
       return rows.map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     }
@@ -1465,11 +1550,11 @@
         notes: "Tempo held up well. Miss pattern drifted right with longer clubs."
       };
       const sample = [
-        { distance: "402", score: "5", putts: "2", penalties: "0", fir: "left", gir: "no", teeMiss: "left", approachResult: "left", teeClub: "Driver", teeDistance: "257", approachClub: "8i", approachDistance: "149", approachProximity: "42", shortGameType: "chip", shortGameDistance: "12", recoveryClub: "58°", upDown: "no", mistake: "approach", note: "Pulled 8i." },
-        { distance: "376", score: "4", putts: "1", penalties: "0", fir: "hit", gir: "yes", teeMiss: "center", approachResult: "pin", teeClub: "3W", teeDistance: "244", approachClub: "PW", approachDistance: "129", approachProximity: "9", shortGameType: "none", mistake: "none", note: "Best tempo." },
-        { distance: "188", score: "3", putts: "2", penalties: "0", fir: "n/a", gir: "yes", teeMiss: "", approachResult: "pin", teeClub: "6i", approachClub: "6i", approachDistance: "176", approachProximity: "24", shortGameType: "none", mistake: "none", note: "Center green." },
-        { distance: "521", score: "6", putts: "2", penalties: "1", fir: "right", gir: "no", teeMiss: "penalty", approachResult: "short", teeClub: "Driver", teeDistance: "268", approachClub: "5i", approachDistance: "176", approachProximity: "61", shortGameType: "pitch", shortGameDistance: "21", recoveryClub: "GW", upDown: "yes", mistake: "penalty", note: "Wrong club into wind." },
-        { distance: "411", score: "4", putts: "2", penalties: "0", fir: "hit", gir: "yes", teeMiss: "center", approachResult: "pin", teeClub: "Driver", teeDistance: "263", approachClub: "9i", approachDistance: "137", approachProximity: "18", shortGameType: "none", mistake: "none", note: "Routine par." }
+        { distance: "402", score: "5", putts: "2", penalties: "0", fir: "left", gir: "no", teeMiss: "left", teeLie: "rough", teeStrike: "heel", approachResult: "left", approachLie: "rough", approachStrike: "thin", teeClub: "Driver", teeDistance: "257", approachClub: "8i", approachDistance: "149", approachProximity: "42", shortGameType: "chip", shortGameLie: "rough", shortGameStrike: "thin", shortGameDistance: "12", recoveryClub: "58°", upDown: "no", mistake: "approach", note: "Pulled 8i." },
+        { distance: "376", score: "4", putts: "1", penalties: "0", fir: "hit", gir: "yes", teeMiss: "center", teeLie: "fairway", teeStrike: "flush", approachResult: "pin", approachLie: "fairway", approachStrike: "flush", teeClub: "3W", teeDistance: "244", approachClub: "PW", approachDistance: "129", approachProximity: "9", shortGameType: "none", mistake: "none", note: "Best tempo." },
+        { distance: "188", score: "3", putts: "2", penalties: "0", fir: "n/a", gir: "yes", teeMiss: "", teeLie: "tee", teeStrike: "flush", approachResult: "pin", approachLie: "tee", approachStrike: "flush", teeClub: "6i", approachClub: "6i", approachDistance: "176", approachProximity: "24", shortGameType: "none", mistake: "none", note: "Center green." },
+        { distance: "521", score: "6", putts: "2", penalties: "1", fir: "right", gir: "no", teeMiss: "penalty", teeLie: "recovery", teeStrike: "low-face", approachResult: "short", approachLie: "pine-straw", approachStrike: "fat", teeClub: "Driver", teeDistance: "268", approachClub: "5i", approachDistance: "176", approachProximity: "61", shortGameType: "pitch", shortGameLie: "rough", shortGameStrike: "flush", shortGameDistance: "21", recoveryClub: "GW", upDown: "yes", mistake: "penalty", note: "Wrong club into wind." },
+        { distance: "411", score: "4", putts: "2", penalties: "0", fir: "hit", gir: "yes", teeMiss: "center", teeLie: "fairway", teeStrike: "flush", approachResult: "pin", approachLie: "fairway", approachStrike: "flush", teeClub: "Driver", teeDistance: "263", approachClub: "9i", approachDistance: "137", approachProximity: "18", shortGameType: "none", mistake: "none", note: "Routine par." }
       ];
       state.holes = Array.from({ length: 18 }, (_, i) => ({ ...defaultHole(i), ...(sample[i] || {}) }));
       state.activeHole = 0;
