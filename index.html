@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Golf Round Tracker v5</title>
+  <meta name="description" content="A mobile-first golf round tracker with play mode, compact scorecard, round review, local JSON save/load, and CSV export." />
+  <link rel="preconnect" href="https://api.fontshare.com">
+  <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&f[]=cabinet-grotesk@500,700&display=swap" rel="stylesheet">
+  <style>
+    :root,
+    [data-theme="light"] {
+      --bg: #f7f6f2;
+      --surface: #fbfaf7;
+      --surface-2: #f1eee7;
+      --surface-3: #e7ebe7;
+      --text: #28251d;
+      --muted: #747069;
+      --faint: #a8a39a;
+      --border: #dedad1;
+      --primary: #01696f;
+      --primary-2: #0c4e54;
+      --primary-soft: #dcebe8;
+      --green: #437a22;
+      --green-soft: #e0ead9;
+      --orange: #9a501f;
+      --orange-soft: #f0dfd4;
+      --red: #a13544;
+      --red-soft: #efdadf;
+      --blue: #006494;
+      --blue-soft: #dce9f1;
+      --shadow: 0 16px 38px rgba(42, 36, 26, .08);
+      --shadow-sm: 0 3px 10px rgba(42, 36, 26, .06);
+      --radius-sm: .85rem;
+      --radius-md: 1.05rem;
+      --radius-lg: 1.45rem;
+      --radius-xl: 1.8rem;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --font-body: "General Sans", Inter, system-ui, sans-serif;
+      --font-display: "Cabinet Grotesk", "General Sans", system-ui, sans-serif;
+      --ease: 180ms cubic-bezier(.16, 1, .3, 1);
+    }
+
+    [data-theme="dark"] {
+      --bg: #171614;
+      --surface: #1d1c19;
+      --surface-2: #25231f;
+      --surface-3: #213032;
+      --text: #ece7dd;
+      --muted: #aaa49a;
+      --faint: #706c65;
+      --border: #38352f;
+      --primary: #64aeb7;
+      --primary-2: #8bc8cf;
+      --primary-soft: #243a3d;
+      --green: #7eb75f;
+      --green-soft: #25351f;
+      --orange: #d7885c;
+      --orange-soft: #3d2d22;
+      --red: #dd6974;
+      --red-soft: #42262a;
+      --blue: #7eb2e0;
+      --blue-soft: #22313d;
+      --shadow: 0 18px 42px rgba(0, 0, 0, .34);
+      --shadow-sm: 0 4px 14px rgba(0, 0, 0, .24);
+    }
+
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background:
+        radial-gradient(circle at 12% -12%, color-mix(in oklab, var(--primary-soft) 70%, transparent), transparent 24rem),
+        linear-gradient(180deg, var(--surface), var(--bg) 28rem);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.48;
+    }
+    body.modal-open { overflow: hidden; }
+    button, input, textarea, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+    .app {
+      width: min(100%, 1180px);
+      margin: 0 auto;
+      padding: calc(1rem + var(--safe-top)) 1rem calc(6.5rem + var(--safe-bottom));
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      margin: -1rem -1rem 1rem;
+      padding: calc(.9rem + var(--safe-top)) 1rem .75rem;
+      background: color-mix(in oklab, var(--bg) 88%, transparent);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+    }
+    .topbar-inner,
+    .split,
+    .row,
+    .section-head,
+    .hole-title,
+    .summary-line,
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .8rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: .72rem;
+    }
+    .logo {
+      flex: 0 0 auto;
+      width: 2.55rem;
+      height: 2.55rem;
+      border-radius: .9rem;
+      display: grid;
+      place-items: center;
+      color: var(--primary);
+      background: linear-gradient(145deg, var(--primary-soft), var(--surface-2));
+      box-shadow: var(--shadow-sm);
+    }
+    .brand h1 {
+      margin: 0;
+      font: 700 clamp(1.2rem, 3vw, 1.55rem)/.95 var(--font-display);
+      letter-spacing: -.035em;
+      white-space: nowrap;
+    }
+    .brand p,
+    .muted,
+    .hint,
+    .small {
+      color: var(--muted);
+      margin: .16rem 0 0;
+    }
+    .brand p { font-size: .86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 58vw; }
+    .small, .hint { font-size: .86rem; }
+    .tiny { font-size: .74rem; color: var(--muted); }
+
+    .icon-button,
+    .btn,
+    .chip,
+    .hole-dot,
+    .tab-button {
+      min-height: 2.8rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      transition: background var(--ease), border-color var(--ease), transform var(--ease), color var(--ease);
+    }
+    .icon-button {
+      width: 2.75rem;
+      display: inline-grid;
+      place-items: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .45rem;
+      padding: .78rem 1rem;
+      font-weight: 700;
+      letter-spacing: -.01em;
+    }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    [data-theme="dark"] .btn-primary { color: #142023; }
+    .btn-danger { background: var(--red-soft); border-color: color-mix(in oklab, var(--red) 38%, var(--border)); color: var(--red); }
+    .btn-soft { background: var(--primary-soft); border-color: color-mix(in oklab, var(--primary) 20%, var(--border)); color: var(--primary); }
+    .btn:hover, .chip:hover, .icon-button:hover, .tab-button:hover { transform: translateY(-1px); }
+
+    .shell { display: grid; gap: 1rem; }
+    .panel,
+    .hero,
+    .hole-editor,
+    .stat-card,
+    .score-row,
+    .modal-panel {
+      background: color-mix(in oklab, var(--surface) 96%, transparent);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      border-radius: var(--radius-xl);
+    }
+    .panel, .hero, .hole-editor { padding: 1rem; }
+    .hero {
+      display: grid;
+      gap: .9rem;
+      background: linear-gradient(160deg, color-mix(in oklab, var(--primary-soft) 48%, var(--surface)), var(--surface));
+    }
+    .eyebrow,
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: fit-content;
+      padding: .38rem .68rem;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: .73rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .pill.good { background: var(--green-soft); color: var(--green); }
+    .pill.warn { background: var(--orange-soft); color: var(--orange); }
+    .pill.bad { background: var(--red-soft); color: var(--red); }
+    .hero h2,
+    .panel h2,
+    .panel h3,
+    .hole-editor h2,
+    .stat-card .value {
+      font-family: var(--font-display);
+      letter-spacing: -.04em;
+    }
+    .hero h2 {
+      margin: 0;
+      max-width: 12ch;
+      font-size: clamp(2.15rem, 10vw, 3.8rem);
+      line-height: .96;
+    }
+    .hero p { margin: 0; max-width: 56ch; color: var(--muted); }
+    .hero-actions,
+    .grid,
+    .form-grid,
+    .stats-grid,
+    .save-grid,
+    .analysis-grid {
+      display: grid;
+      gap: .75rem;
+    }
+
+    .tabs {
+      position: fixed;
+      z-index: 30;
+      left: max(.75rem, env(safe-area-inset-left));
+      right: max(.75rem, env(safe-area-inset-right));
+      bottom: calc(.75rem + var(--safe-bottom));
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .35rem;
+      padding: .38rem;
+      border: 1px solid var(--border);
+      border-radius: 1.35rem;
+      background: color-mix(in oklab, var(--surface) 90%, transparent);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+    .tab-button {
+      min-height: 3rem;
+      padding: .35rem .2rem;
+      font-size: .77rem;
+      font-weight: 800;
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+    }
+    .tab-button.active {
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .hole-strip {
+      display: grid;
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      gap: .35rem;
+    }
+    .hole-dot {
+      min-height: 2.55rem;
+      padding: 0;
+      font-weight: 800;
+      color: var(--muted);
+      background: var(--surface);
+    }
+    .hole-dot.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .hole-dot.complete { border-color: color-mix(in oklab, var(--green) 48%, var(--border)); color: var(--green); }
+    .hole-dot.over { border-color: color-mix(in oklab, var(--orange) 48%, var(--border)); color: var(--orange); }
+    .hole-dot.birdie { border-color: color-mix(in oklab, var(--blue) 48%, var(--border)); color: var(--blue); }
+    .hole-dot.active.complete,
+    .hole-dot.active.over,
+    .hole-dot.active.birdie { color: #fff; }
+
+    .hole-editor { display: grid; gap: 1rem; }
+    .hole-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .6rem;
+    }
+    .mini-stat {
+      padding: .75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+    }
+    .mini-stat label,
+    .field label,
+    .field-title {
+      display: block;
+      margin: 0 0 .42rem;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .mini-stat input,
+    .field input,
+    .field textarea {
+      width: 100%;
+      min-height: 2.85rem;
+      border: 1px solid var(--border);
+      border-radius: .88rem;
+      background: var(--surface);
+      padding: .74rem .85rem;
+      font-variant-numeric: tabular-nums lining-nums;
+    }
+    .field textarea { min-height: 5.6rem; resize: vertical; }
+    .quick-section { display: grid; gap: .55rem; }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .45rem;
+    }
+    .chip {
+      min-height: 2.65rem;
+      padding: .55rem .82rem;
+      font-weight: 750;
+      font-size: .9rem;
+      flex: 1 1 auto;
+    }
+    .chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .chip.good.active { background: var(--green); border-color: var(--green); }
+    .chip.warn.active { background: var(--orange); border-color: var(--orange); }
+    .chip.bad.active { background: var(--red); border-color: var(--red); }
+    .chip.info.active { background: var(--blue); border-color: var(--blue); }
+    [data-theme="dark"] .chip.active,
+    [data-theme="dark"] .hole-dot.active { color: #142023; }
+    .score-quick .chip { flex-basis: calc(50% - .3rem); }
+
+    details.advanced {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    details.advanced > summary {
+      list-style: none;
+      padding: .9rem 1rem;
+      cursor: pointer;
+      font-weight: 800;
+    }
+    details.advanced > summary::-webkit-details-marker { display: none; }
+    .advanced-body {
+      display: grid;
+      gap: .8rem;
+      padding: 0 1rem 1rem;
+    }
+
+    .score-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: .7rem;
+      padding: .85rem;
+      text-align: left;
+      width: 100%;
+      color: var(--text);
+    }
+    .score-row.complete { border-color: color-mix(in oklab, var(--green) 38%, var(--border)); }
+    .score-row .num {
+      display: grid;
+      place-items: center;
+      width: 2.45rem;
+      height: 2.45rem;
+      border-radius: .8rem;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 900;
+      font-variant-numeric: tabular-nums lining-nums;
+    }
+    .score-main strong { display: block; font-size: .98rem; }
+    .score-main span { display: block; color: var(--muted); font-size: .82rem; }
+    .score-result {
+      min-width: 4.8rem;
+      text-align: right;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums lining-nums;
+    }
+
+    .stat-card {
+      padding: 1rem;
+      background: var(--surface);
+    }
+    .stat-card .label {
+      margin-bottom: .4rem;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 900;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .stat-card .value {
+      font-size: clamp(1.75rem, 8vw, 2.45rem);
+      line-height: .95;
+      font-variant-numeric: tabular-nums lining-nums;
+    }
+    .stat-card .detail { margin-top: .45rem; color: var(--muted); font-size: .86rem; }
+    .bar-list { display: grid; gap: .7rem; }
+    .bar-row { display: grid; gap: .35rem; }
+    .bar-label { display: flex; justify-content: space-between; color: var(--muted); font-size: .86rem; }
+    .bar-track {
+      overflow: hidden;
+      height: .62rem;
+      border-radius: 999px;
+      background: var(--surface-2);
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0;
+      border-radius: inherit;
+      background: var(--primary);
+      transition: width var(--ease);
+    }
+
+    .empty {
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      color: var(--muted);
+      background: color-mix(in oklab, var(--surface) 72%, transparent);
+    }
+    .warning {
+      padding: .8rem .9rem;
+      border: 1px solid color-mix(in oklab, var(--orange) 35%, var(--border));
+      border-radius: var(--radius-md);
+      background: var(--orange-soft);
+      color: var(--orange);
+      font-weight: 650;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      place-items: end center;
+      padding: 1rem;
+      background: rgba(0, 0, 0, .34);
+    }
+    .modal.open { display: grid; }
+    .modal-panel {
+      width: min(100%, 560px);
+      max-height: min(92dvh, 720px);
+      overflow: auto;
+      padding: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .hidden-input { display: none; }
+
+    @media (min-width: 700px) {
+      .app { padding: calc(1.2rem + var(--safe-top)) 1.4rem 3rem; }
+      .topbar { margin-inline: -1.4rem; padding-inline: 1.4rem; }
+      .tabs {
+        position: sticky;
+        top: calc(4.7rem + var(--safe-top));
+        margin-bottom: 1rem;
+        left: auto;
+        right: auto;
+        bottom: auto;
+      }
+      .hero-actions,
+      .save-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .form-grid,
+      .stats-grid,
+      .analysis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .hole-strip { grid-template-columns: repeat(18, minmax(0, 1fr)); }
+      .score-quick .chip { flex-basis: auto; }
+      .modal { place-items: center; }
+    }
+
+    @media (min-width: 980px) {
+      .desktop-grid {
+        display: grid;
+        grid-template-columns: minmax(0, .88fr) minmax(420px, 1.12fr);
+        align-items: start;
+        gap: 1rem;
+      }
+      .desktop-sticky {
+        position: sticky;
+        top: calc(9rem + var(--safe-top));
+      }
+      .form-grid,
+      .analysis-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .view[data-view="play"].active { display: grid; gap: 1rem; }
+    }
+
+    @media (max-width: 979px) {
+      .view[data-view="play"] .desktop-grid {
+        display: grid;
+      }
+      #holeEditor {
+        order: 1;
+      }
+      .play-controls {
+        order: 2;
+      }
+      .hero {
+        gap: .75rem;
+      }
+      .hero h2 {
+        max-width: 16ch;
+        font-size: clamp(1.65rem, 8vw, 2.4rem);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <svg width="27" height="27" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 50c15-2 27-10 36-26" />
+              <path d="M44 13l7 11-13 1" />
+              <path d="M14 50h38" />
+            </svg>
+          </div>
+          <div>
+            <h1>Round Tracker v5</h1>
+            <p id="topStatus">Play mode for fast round entry.</p>
+          </div>
+        </div>
+        <button class="icon-button" id="themeBtn" type="button" aria-label="Switch theme"></button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="App sections">
+      <button class="tab-button active" type="button" data-tab="play">Play</button>
+      <button class="tab-button" type="button" data-tab="scorecard">Scorecard</button>
+      <button class="tab-button" type="button" data-tab="review">Review</button>
+      <button class="tab-button" type="button" data-tab="save">Save</button>
+    </nav>
+
+    <section class="view active" data-view="play">
+      <div class="desktop-grid">
+        <div class="grid desktop-sticky play-controls">
+          <section class="hero">
+            <span class="eyebrow">Play mode</span>
+            <h2>Track every hole in seconds.</h2>
+            <p>Log score, putts, FIR, GIR, penalties, misses, clubs, and decision notes without scrolling through all 18 holes.</p>
+            <div class="hero-actions">
+              <button class="btn btn-primary" type="button" id="newRoundBtn">New round</button>
+              <button class="btn btn-soft" type="button" id="sampleBtn">Sample data</button>
+              <button class="btn" type="button" data-tab-jump="save">Save / Load</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <h3>Hole jump</h3>
+                <p class="hint">Tap any hole to edit it.</p>
+              </div>
+              <span class="pill" id="holesCompletePill">0 complete</span>
+            </div>
+            <div class="hole-strip" id="holeStrip"></div>
+          </section>
+        </div>
+
+        <section class="hole-editor" id="holeEditor"></section>
+      </div>
+    </section>
+
+    <section class="view" data-view="scorecard">
+      <div class="desktop-grid">
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Scorecard</h2>
+              <p class="hint">Compact round view. Tap a hole to edit in Play mode.</p>
+            </div>
+            <span class="pill" id="scorecardPill">0 logged</span>
+          </div>
+          <div class="grid" id="scorecardList"></div>
+        </section>
+        <section class="panel desktop-sticky">
+          <h3>Round snapshot</h3>
+          <div class="stats-grid" id="scorecardStats"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" data-view="review">
+      <div class="grid">
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Round review</h2>
+              <p class="hint">Use this after the round to see where shots were lost.</p>
+            </div>
+            <button class="btn btn-soft" type="button" data-tab-jump="save">Export</button>
+          </div>
+          <div class="stats-grid" id="reviewStats"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Mistake pattern</h3>
+          <p class="hint">Tag the primary cause on bad holes to make this useful.</p>
+          <div class="bar-list" id="mistakeBars"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Scoring by par</h3>
+          <div class="analysis-grid" id="parBreakdown"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Coach notes</h3>
+          <div id="coachNotes" class="grid"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" data-view="save">
+      <div class="desktop-grid">
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Round setup</h2>
+              <p class="hint">Saved inside JSON when you export locally.</p>
+            </div>
+            <span class="pill" id="dirtyPill">Unsaved</span>
+          </div>
+          <div class="form-grid" id="roundSetup"></div>
+        </section>
+
+        <section class="panel desktop-sticky">
+          <h2>Save locally</h2>
+          <p class="hint">This app does not use browser storage. Save a JSON file to your device, then load it later to resume or review.</p>
+          <div class="save-grid" style="margin-top: .9rem;">
+            <button class="btn btn-primary" type="button" id="saveJsonBtn">Save JSON</button>
+            <button class="btn" type="button" id="loadJsonBtn">Load JSON</button>
+            <button class="btn" type="button" id="exportCsvBtn">Export CSV</button>
+            <button class="btn btn-soft" type="button" id="copySummaryBtn">Copy summary</button>
+            <button class="btn" type="button" id="newSameCourseBtn">New round, same course</button>
+            <button class="btn btn-danger" type="button" id="clearRoundBtn">Clear round</button>
+          </div>
+          <input class="hidden-input" id="fileInput" type="file" accept="application/json,.json" />
+          <div class="warning" style="margin-top: 1rem;">Save the JSON before closing the page. Loading that file restores the round, course setup, and all hole data.</div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal" id="otherScoreModal" role="dialog" aria-modal="true" aria-labelledby="otherScoreTitle">
+    <div class="modal-panel">
+      <div class="section-head">
+        <div>
+          <h2 id="otherScoreTitle">Set score</h2>
+          <p class="hint">Enter the total strokes for this hole.</p>
+        </div>
+        <button class="icon-button" type="button" id="closeScoreModal" aria-label="Close">×</button>
+      </div>
+      <div class="field" style="margin-top: 1rem;">
+        <label for="otherScoreInput">Score</label>
+        <input id="otherScoreInput" type="number" inputmode="numeric" min="1" max="15" />
+      </div>
+      <div class="hero-actions" style="margin-top: 1rem;">
+        <button class="btn btn-primary" type="button" id="saveOtherScore">Save score</button>
+        <button class="btn" type="button" id="cancelOtherScore">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const defaultPars = [4,4,3,4,5,4,3,4,4,4,5,3,4,4,4,3,5,4];
+    const defaultBag = ["Driver", "3W", "5W", "Hybrid", "4i", "5i", "6i", "7i", "8i", "9i", "PW", "GW", "54°", "58°", "Putter"];
+    const defaultHole = (index) => ({
+      hole: index + 1,
+      par: defaultPars[index],
+      distance: "",
+      score: "",
+      putts: "",
+      penalties: "",
+      fir: defaultPars[index] === 3 ? "n/a" : "",
+      gir: "",
+      teeMiss: "",
+      approachResult: "",
+      teeClub: "",
+      teeDistance: "",
+      approachClub: "",
+      approachDistance: "",
+      approachProximity: "",
+      shortGameType: "",
+      shortGameDistance: "",
+      recoveryClub: "",
+      upDown: "",
+      mistake: "",
+      note: ""
+    });
+
+    const state = {
+      version: 5,
+      activeHole: 0,
+      dirty: false,
+      metadata: {
+        course: "",
+        date: new Date().toISOString().slice(0, 10),
+        tees: "",
+        weather: "",
+        target: "",
+        notes: ""
+      },
+      bag: [...defaultBag],
+      holes: Array.from({ length: 18 }, (_, i) => defaultHole(i))
+    };
+
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+    const safeNum = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+
+    const options = {
+      fir: [
+        ["hit", "Hit", "good"],
+        ["left", "Left", "warn"],
+        ["right", "Right", "warn"],
+        ["n/a", "N/A", "info"]
+      ],
+      gir: [
+        ["yes", "Yes", "good"],
+        ["no", "No", "warn"]
+      ],
+      teeMiss: [
+        ["center", "Center", "good"],
+        ["left", "Left", "warn"],
+        ["right", "Right", "warn"],
+        ["short", "Short", "warn"],
+        ["penalty", "Penalty", "bad"]
+      ],
+      approachResult: [
+        ["pin", "Pin", "good"],
+        ["short", "Short", "warn"],
+        ["long", "Long", "warn"],
+        ["left", "Left", "warn"],
+        ["right", "Right", "warn"]
+      ],
+      shortGameType: [
+        ["none", "None", "good"],
+        ["chip", "Chip", "info"],
+        ["pitch", "Pitch", "info"],
+        ["bunker", "Bunker", "warn"],
+        ["recovery", "Recovery", "bad"]
+      ],
+      upDown: [
+        ["yes", "Up & down", "good"],
+        ["no", "No", "warn"]
+      ],
+      mistake: [
+        ["none", "None", "good"],
+        ["tee", "Tee", "warn"],
+        ["approach", "Approach", "warn"],
+        ["short-game", "Short game", "warn"],
+        ["putting", "Putting", "warn"],
+        ["penalty", "Penalty", "bad"],
+        ["decision", "Decision", "bad"]
+      ]
+    };
+
+    function markDirty() {
+      state.dirty = true;
+      $("#dirtyPill").textContent = "Unsaved";
+      $("#dirtyPill").className = "pill warn";
+    }
+
+    function setSaved() {
+      state.dirty = false;
+      $("#dirtyPill").textContent = "Saved file";
+      $("#dirtyPill").className = "pill good";
+    }
+
+    function themeIcon(theme) {
+      return theme === "dark"
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
+        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+    }
+
+    let theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", theme);
+    $("#themeBtn").innerHTML = themeIcon(theme);
+    $("#themeBtn").addEventListener("click", () => {
+      theme = theme === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", theme);
+      $("#themeBtn").innerHTML = themeIcon(theme);
+    });
+
+    function switchTab(tabName) {
+      $$(".tab-button").forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tabName));
+      $$(".view").forEach((view) => view.classList.toggle("active", view.dataset.view === tabName));
+      if (tabName === "review") renderReview();
+      if (tabName === "scorecard") renderScorecard();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    $$(".tab-button").forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tab)));
+    $$("[data-tab-jump]").forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tabJump)));
+
+    function holeComplete(hole) {
+      return hole.score !== "" && safeNum(hole.score) > 0;
+    }
+
+    function holeToPar(hole) {
+      if (!holeComplete(hole)) return null;
+      return safeNum(hole.score) - safeNum(hole.par);
+    }
+
+    function statusClass(hole) {
+      if (!holeComplete(hole)) return "";
+      const toPar = holeToPar(hole);
+      if (toPar < 0) return "birdie";
+      if (toPar > 0) return "over";
+      return "complete";
+    }
+
+    function scoreLabel(score, par) {
+      if (!score) return "No score";
+      const delta = safeNum(score) - safeNum(par);
+      if (delta === -2) return "Eagle";
+      if (delta === -1) return "Birdie";
+      if (delta === 0) return "Par";
+      if (delta === 1) return "Bogey";
+      if (delta === 2) return "Double";
+      if (delta > 2) return `+${delta}`;
+      return String(delta);
+    }
+
+    function setActiveHole(index) {
+      state.activeHole = Math.max(0, Math.min(17, index));
+      renderPlay();
+      switchTab("play");
+      $("#holeEditor").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function chipGroup(key, list, holeIndex = state.activeHole) {
+      const hole = state.holes[holeIndex];
+      const wrap = document.createElement("div");
+      wrap.className = "chips";
+      list.forEach(([value, label, cls]) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `chip ${cls || ""} ${hole[key] === value ? "active" : ""}`.trim();
+        btn.textContent = label;
+        btn.setAttribute("aria-pressed", hole[key] === value ? "true" : "false");
+        btn.addEventListener("click", () => {
+          hole[key] = hole[key] === value ? "" : value;
+          if (key === "fir" && safeNum(hole.par) === 3 && hole[key] === "") hole[key] = "n/a";
+          markDirty();
+          renderAll();
+        });
+        wrap.appendChild(btn);
+      });
+      return wrap;
+    }
+
+    function clubGroup(key, holeIndex = state.activeHole) {
+      const hole = state.holes[holeIndex];
+      const wrap = document.createElement("div");
+      wrap.className = "chips";
+      state.bag.forEach((club) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `chip ${hole[key] === club ? "active" : ""}`.trim();
+        btn.textContent = club;
+        btn.addEventListener("click", () => {
+          hole[key] = hole[key] === club ? "" : club;
+          markDirty();
+          renderAll();
+        });
+        wrap.appendChild(btn);
+      });
+      return wrap;
+    }
+
+    function inputField({ label, value, type = "text", placeholder = "", onInput }) {
+      const wrap = document.createElement("div");
+      wrap.className = "field";
+      const id = `field-${Math.random().toString(36).slice(2)}`;
+      wrap.innerHTML = `<label for="${id}">${label}</label>`;
+      const input = label.toLowerCase().includes("note") || label.toLowerCase().includes("target") || label.toLowerCase().includes("weather")
+        ? document.createElement("textarea")
+        : document.createElement("input");
+      input.id = id;
+      if (input.tagName === "INPUT") input.type = type;
+      if (type === "number") input.inputMode = "numeric";
+      input.value = value ?? "";
+      input.placeholder = placeholder;
+      input.addEventListener("input", (event) => {
+        onInput(event.target.value);
+        markDirty();
+        renderSummaries();
+      });
+      wrap.appendChild(input);
+      return wrap;
+    }
+
+    function renderHoleStrip() {
+      const strip = $("#holeStrip");
+      strip.innerHTML = "";
+      state.holes.forEach((hole, index) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `hole-dot ${index === state.activeHole ? "active" : ""} ${statusClass(hole)}`.trim();
+        btn.textContent = hole.hole;
+        btn.setAttribute("aria-label", `Edit hole ${hole.hole}`);
+        btn.addEventListener("click", () => setActiveHole(index));
+        strip.appendChild(btn);
+      });
+    }
+
+    function renderPlay() {
+      renderHoleStrip();
+      const hole = state.holes[state.activeHole];
+      const editor = $("#holeEditor");
+      const scoreOptions = [
+        [String(Math.max(1, safeNum(hole.par) - 1)), "Birdie", "info"],
+        [String(safeNum(hole.par)), "Par", "good"],
+        [String(safeNum(hole.par) + 1), "Bogey", "warn"],
+        [String(safeNum(hole.par) + 2), "Double", "bad"]
+      ];
+
+      editor.innerHTML = "";
+      const head = document.createElement("div");
+      head.className = "hole-title";
+      head.innerHTML = `
+        <div>
+          <span class="eyebrow">Active hole</span>
+          <h2 style="margin:.55rem 0 0;">Hole ${hole.hole}</h2>
+          <p class="hint">Par ${hole.par}${hole.distance ? ` · ${hole.distance} yards` : ""}${hole.score ? ` · ${scoreLabel(hole.score, hole.par)}` : ""}</p>
+        </div>
+        <span class="pill ${holeComplete(hole) ? "good" : "warn"}">${holeComplete(hole) ? "Complete" : "Open"}</span>
+      `;
+      editor.appendChild(head);
+
+      const nav = document.createElement("div");
+      nav.className = "hero-actions";
+      nav.innerHTML = `
+        <button class="btn" type="button" id="prevHoleBtn">Previous</button>
+        <button class="btn btn-primary" type="button" id="nextHoleBtn">Next hole</button>
+        <button class="btn" type="button" id="scorecardJumpBtn">Scorecard</button>
+      `;
+      editor.appendChild(nav);
+      $("#prevHoleBtn", editor).addEventListener("click", () => setActiveHole(state.activeHole - 1));
+      $("#nextHoleBtn", editor).addEventListener("click", () => setActiveHole(state.activeHole + 1));
+      $("#scorecardJumpBtn", editor).addEventListener("click", () => switchTab("scorecard"));
+
+      const meta = document.createElement("div");
+      meta.className = "hole-meta";
+      meta.append(
+        inputField({ label: "Par", type: "number", value: hole.par, placeholder: "4", onInput: (v) => { hole.par = v; if (safeNum(v) === 3 && !hole.fir) hole.fir = "n/a"; } }),
+        inputField({ label: "Yards", type: "number", value: hole.distance, placeholder: "410", onInput: (v) => hole.distance = v }),
+        inputField({ label: "Penalties", type: "number", value: hole.penalties, placeholder: "0", onInput: (v) => hole.penalties = v })
+      );
+      editor.appendChild(meta);
+
+      const distanceBlock = document.createElement("div");
+      distanceBlock.className = "hole-meta";
+      distanceBlock.append(
+        inputField({ label: "Tee shot went", type: "number", value: hole.teeDistance, placeholder: "258 yards", onInput: (v) => hole.teeDistance = v }),
+        inputField({ label: "Approach to hole", type: "number", value: hole.approachProximity, placeholder: "18 feet", onInput: (v) => hole.approachProximity = v }),
+        inputField({ label: "Approach from", type: "number", value: hole.approachDistance, placeholder: "143 yards", onInput: (v) => hole.approachDistance = v })
+      );
+      editor.appendChild(distanceBlock);
+
+      const scoreBlock = quickBlock("Score", "Choose a common result or enter another score.");
+      const scoreChips = document.createElement("div");
+      scoreChips.className = "chips score-quick";
+      scoreOptions.forEach(([value, label, cls]) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `chip ${cls} ${hole.score === value ? "active" : ""}`.trim();
+        btn.textContent = `${label} (${value})`;
+        btn.addEventListener("click", () => {
+          hole.score = hole.score === value ? "" : value;
+          if (hole.score && !hole.mistake && safeNum(hole.score) - safeNum(hole.par) >= 2) hole.mistake = "decision";
+          markDirty();
+          renderAll();
+        });
+        scoreChips.appendChild(btn);
+      });
+      const other = document.createElement("button");
+      other.type = "button";
+      other.className = "chip";
+      other.textContent = hole.score && !scoreOptions.some(([v]) => v === hole.score) ? `Other (${hole.score})` : "Other";
+      other.addEventListener("click", openOtherScore);
+      scoreChips.appendChild(other);
+      scoreBlock.appendChild(scoreChips);
+      editor.appendChild(scoreBlock);
+
+      const puttsBlock = quickBlock("Putts", "Fast putting entry.");
+      puttsBlock.appendChild(numberChipGroup("putts", ["0", "1", "2", "3", "4+"], hole));
+      editor.appendChild(puttsBlock);
+
+      const firBlock = quickBlock("Fairway", "Par 3 holes default to N/A.");
+      firBlock.appendChild(chipGroup("fir", options.fir));
+      editor.appendChild(firBlock);
+
+      const girBlock = quickBlock("Green in regulation", "Track whether the approach gave you a regulation look.");
+      girBlock.appendChild(chipGroup("gir", options.gir));
+      editor.appendChild(girBlock);
+
+      const mistakeBlock = quickBlock("Primary mistake", "Tag the main reason a bad hole got away.");
+      mistakeBlock.appendChild(chipGroup("mistake", options.mistake));
+      editor.appendChild(mistakeBlock);
+
+      const advanced = document.createElement("details");
+      advanced.className = "advanced";
+      advanced.innerHTML = `<summary>Shot details, clubs, and notes</summary>`;
+      const advancedBody = document.createElement("div");
+      advancedBody.className = "advanced-body";
+
+      advancedBody.appendChild(quickBlockWithContent("Tee miss", chipGroup("teeMiss", options.teeMiss)));
+      advancedBody.appendChild(quickBlockWithContent("Approach result", chipGroup("approachResult", options.approachResult)));
+      advancedBody.appendChild(quickBlockWithContent("Tee club", clubGroup("teeClub")));
+      advancedBody.appendChild(quickBlockWithContent("Approach club", clubGroup("approachClub")));
+      advancedBody.appendChild(quickBlockWithContent("Short game", chipGroup("shortGameType", options.shortGameType)));
+      advancedBody.appendChild(inputField({ label: "Short-game distance", type: "number", value: hole.shortGameDistance, placeholder: "18", onInput: (v) => hole.shortGameDistance = v }));
+      advancedBody.appendChild(quickBlockWithContent("Recovery club", clubGroup("recoveryClub")));
+      advancedBody.appendChild(quickBlockWithContent("Up and down", chipGroup("upDown", options.upDown)));
+      advancedBody.appendChild(inputField({ label: "Decision note", value: hole.note, placeholder: "Wrong club? Bad target? Tempo issue?", onInput: (v) => hole.note = v }));
+      advanced.appendChild(advancedBody);
+      editor.appendChild(advanced);
+
+      renderSummaries();
+    }
+
+    function quickBlock(title, hint) {
+      const block = document.createElement("div");
+      block.className = "quick-section";
+      block.innerHTML = `<div><span class="field-title">${title}</span>${hint ? `<p class="tiny">${hint}</p>` : ""}</div>`;
+      return block;
+    }
+
+    function quickBlockWithContent(title, content) {
+      const block = quickBlock(title, "");
+      block.appendChild(content);
+      return block;
+    }
+
+    function numberChipGroup(key, values, hole) {
+      const wrap = document.createElement("div");
+      wrap.className = "chips";
+      values.forEach((value) => {
+        const actual = value.endsWith("+") ? value.replace("+", "") : value;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `chip ${String(hole[key]) === actual ? "active" : ""}`;
+        btn.textContent = value;
+        btn.addEventListener("click", () => {
+          hole[key] = String(hole[key]) === actual ? "" : actual;
+          if (key === "putts" && safeNum(actual) >= 3 && !hole.mistake) hole.mistake = "putting";
+          markDirty();
+          renderAll();
+        });
+        wrap.appendChild(btn);
+      });
+      return wrap;
+    }
+
+    function renderScorecard() {
+      const list = $("#scorecardList");
+      list.innerHTML = "";
+      state.holes.forEach((hole, index) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `score-row ${holeComplete(hole) ? "complete" : ""}`;
+        const toPar = holeToPar(hole);
+        const result = toPar === null ? "Open" : toPar === 0 ? "E" : toPar > 0 ? `+${toPar}` : `${toPar}`;
+        btn.innerHTML = `
+          <span class="num">${hole.hole}</span>
+          <span class="score-main">
+            <strong>Par ${hole.par}${hole.distance ? ` · ${hole.distance} yds` : ""}</strong>
+            <span>${hole.score ? `${hole.score} strokes · ${hole.putts || "?"} putts · FIR ${hole.fir || "?"} · GIR ${hole.gir || "?"}` : "Tap to log this hole"}</span>
+          </span>
+          <span class="score-result">${result}</span>
+        `;
+        btn.addEventListener("click", () => setActiveHole(index));
+        list.appendChild(btn);
+      });
+      $("#scorecardStats").innerHTML = statCards(summaryStats()).map(statCard).join("");
+      renderSummaries();
+    }
+
+    function summaryStats() {
+      const played = state.holes.filter(holeComplete);
+      const score = played.reduce((sum, h) => sum + safeNum(h.score), 0);
+      const par = played.reduce((sum, h) => sum + safeNum(h.par), 0);
+      const toPar = score - par;
+      const putts = state.holes.reduce((sum, h) => sum + safeNum(h.putts), 0);
+      const penalties = state.holes.reduce((sum, h) => sum + safeNum(h.penalties), 0);
+      const firEligible = state.holes.filter((h) => safeNum(h.par) >= 4 && h.fir && h.fir !== "n/a");
+      const firHits = firEligible.filter((h) => h.fir === "hit").length;
+      const girLogged = state.holes.filter((h) => h.gir === "yes" || h.gir === "no");
+      const girHits = girLogged.filter((h) => h.gir === "yes").length;
+      const shortAttempts = state.holes.filter((h) => h.shortGameType && h.shortGameType !== "none");
+      const upDowns = shortAttempts.filter((h) => h.upDown === "yes").length;
+      const teeDistances = state.holes.map((h) => safeNum(h.teeDistance)).filter(Boolean);
+      const approachProximities = state.holes.map((h) => safeNum(h.approachProximity)).filter(Boolean);
+      return {
+        played,
+        score,
+        par,
+        toPar,
+        putts,
+        penalties,
+        firEligible,
+        firHits,
+        girLogged,
+        girHits,
+        shortAttempts,
+        upDowns,
+        teeDistances,
+        approachProximities,
+        completed: played.length,
+        logged: state.holes.filter((h) => h.score || h.putts || (h.fir && h.fir !== "n/a") || h.gir || h.note || h.teeClub || h.approachClub || h.mistake).length
+      };
+    }
+
+    function formatPct(num, den) {
+      return den ? `${Math.round((num / den) * 100)}%` : "0%";
+    }
+
+    function statCards(stats) {
+      const avgTee = stats.teeDistances.length ? Math.round(stats.teeDistances.reduce((a, b) => a + b, 0) / stats.teeDistances.length) : 0;
+      const avgProximity = stats.approachProximities.length ? Math.round(stats.approachProximities.reduce((a, b) => a + b, 0) / stats.approachProximities.length) : 0;
+      return [
+        { label: "Score", value: stats.score || 0, detail: stats.completed ? `${stats.toPar === 0 ? "Even" : stats.toPar > 0 ? `+${stats.toPar}` : stats.toPar} through ${stats.completed}` : "No holes complete" },
+        { label: "Fairways", value: formatPct(stats.firHits, stats.firEligible.length), detail: `${stats.firHits}/${stats.firEligible.length} eligible` },
+        { label: "GIR", value: formatPct(stats.girHits, stats.girLogged.length), detail: `${stats.girHits}/${stats.girLogged.length} logged` },
+        { label: "Putts", value: stats.putts, detail: `${stats.penalties} penalties` },
+        { label: "Scrambling", value: formatPct(stats.upDowns, stats.shortAttempts.length), detail: `${stats.upDowns}/${stats.shortAttempts.length} attempts` },
+        { label: "Avg tee", value: avgTee ? `${avgTee}` : "—", detail: avgTee ? "yards logged" : "No tee distances" },
+        { label: "Avg prox", value: avgProximity ? `${avgProximity}` : "—", detail: avgProximity ? "feet from hole" : "No approach proximity" },
+      ];
+    }
+
+    function statCard(item) {
+      return `<article class="stat-card"><div class="label">${item.label}</div><div class="value">${item.value}</div><div class="detail">${item.detail}</div></article>`;
+    }
+
+    function renderReview() {
+      const stats = summaryStats();
+      $("#reviewStats").innerHTML = statCards(stats).map(statCard).join("");
+      renderMistakeBars();
+      renderParBreakdown();
+      renderCoachNotes();
+    }
+
+    function renderMistakeBars() {
+      const counts = {};
+      options.mistake.forEach(([value]) => counts[value] = 0);
+      state.holes.forEach((h) => {
+        if (h.mistake) counts[h.mistake] += 1;
+      });
+      const entries = Object.entries(counts).filter(([key, value]) => key !== "none" && value > 0).sort((a, b) => b[1] - a[1]);
+      const max = Math.max(1, ...entries.map(([, value]) => value));
+      const el = $("#mistakeBars");
+      if (!entries.length) {
+        el.innerHTML = `<div class="empty">No mistakes tagged yet. Use Play mode to tag the main reason for bad holes.</div>`;
+        return;
+      }
+      el.innerHTML = entries.map(([key, value]) => {
+        const label = key.split("-").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
+        return `<div class="bar-row"><div class="bar-label"><span>${label}</span><strong>${value}</strong></div><div class="bar-track"><div class="bar-fill" style="width:${(value / max) * 100}%"></div></div></div>`;
+      }).join("");
+    }
+
+    function renderParBreakdown() {
+      const groups = [3, 4, 5].map((par) => {
+        const holes = state.holes.filter((h) => safeNum(h.par) === par && holeComplete(h));
+        const score = holes.reduce((sum, h) => sum + safeNum(h.score), 0);
+        const baseline = holes.reduce((sum, h) => sum + safeNum(h.par), 0);
+        const toPar = score - baseline;
+        return { par, holes, score, toPar };
+      });
+      $("#parBreakdown").innerHTML = groups.map((group) => statCard({
+        label: `Par ${group.par}s`,
+        value: group.holes.length ? (group.toPar === 0 ? "E" : group.toPar > 0 ? `+${group.toPar}` : String(group.toPar)) : "—",
+        detail: `${group.holes.length} holes logged`
+      })).join("");
+    }
+
+    function renderCoachNotes() {
+      const stats = summaryStats();
+      const notes = [];
+      if (!stats.completed) notes.push("Finish a few holes to generate round notes.");
+      if (stats.penalties > 0) notes.push(`${stats.penalties} penalty stroke${stats.penalties === 1 ? "" : "s"} logged. Tag whether they came from tee, approach, or decision errors.`);
+      if (stats.girLogged.length && stats.girHits / stats.girLogged.length < .45) notes.push("Approach play looks like the first review area. Check approach miss direction and club choices.");
+      if (stats.firEligible.length && stats.firHits / stats.firEligible.length < .45) notes.push("Fairway percentage is low. Compare tee club, tee distance, and miss direction before assuming driver is the issue.");
+      if (stats.completed >= 9 && stats.putts / stats.completed >= 2) notes.push("Putting volume is high. Flag 3-putts and note whether first-putt speed or start line caused them.");
+      if (stats.shortAttempts.length >= 3 && stats.upDowns / stats.shortAttempts.length >= .5) notes.push("Short game is helping the round. Keep tagging distances so you can spot your best recovery window.");
+      $("#coachNotes").innerHTML = notes.map((note) => `<div class="empty">${note}</div>`).join("");
+    }
+
+    function renderRoundSetup() {
+      const setup = $("#roundSetup");
+      setup.innerHTML = "";
+      const fields = [
+        ["Course", "course", "Course name"],
+        ["Date", "date", ""],
+        ["Tees", "tees", "Blue / White / Combo"],
+        ["Weather", "weather", "72°, wind 10 mph"],
+        ["Target", "target", "Commit to stock shot"],
+        ["Round notes", "notes", "What mattered today? Wind, tempo, pressure, misses."]
+      ];
+      fields.forEach(([label, key, placeholder]) => {
+        setup.appendChild(inputField({
+          label,
+          value: state.metadata[key],
+          type: key === "date" ? "date" : "text",
+          placeholder,
+          onInput: (value) => {
+            state.metadata[key] = value;
+            renderSummaries();
+          }
+        }));
+      });
+    }
+
+    function renderSummaries() {
+      const stats = summaryStats();
+      $("#holesCompletePill").textContent = `${stats.completed} complete`;
+      $("#scorecardPill").textContent = `${stats.logged} logged`;
+      const course = state.metadata.course || "Unsaved round";
+      const scoreText = stats.completed ? `${stats.score} (${stats.toPar === 0 ? "E" : stats.toPar > 0 ? `+${stats.toPar}` : stats.toPar})` : "No score yet";
+      $("#topStatus").textContent = `${course} · ${scoreText}`;
+    }
+
+    function renderAll() {
+      renderPlay();
+      renderScorecard();
+      renderRoundSetup();
+      renderReview();
+      renderSummaries();
+    }
+
+    function roundData() {
+      return {
+        app: "Golf Round Tracker",
+        version: 5,
+        savedAt: new Date().toISOString(),
+        metadata: state.metadata,
+        bag: state.bag,
+        activeHole: state.activeHole,
+        holes: state.holes
+      };
+    }
+
+    function roundFilename(ext = "json") {
+      const date = state.metadata.date || new Date().toISOString().slice(0, 10);
+      const course = (state.metadata.course || "golf-round")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      return `${date}-${course || "golf-round"}.${ext}`;
+    }
+
+    function downloadFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function saveJson() {
+      const content = JSON.stringify(roundData(), null, 2);
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: roundFilename("json"),
+            types: [{ description: "Golf round JSON", accept: { "application/json": [".json"] } }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(content);
+          await writable.close();
+          setSaved();
+          alert("Round saved to your device.");
+          return;
+        } catch (error) {
+          if (error.name === "AbortError") return;
+        }
+      }
+      downloadFile(roundFilename("json"), content, "application/json;charset=utf-8");
+      setSaved();
+    }
+
+    function loadJsonFile(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(String(reader.result));
+          if (!Array.isArray(data.holes) || data.holes.length !== 18) throw new Error("Invalid round file");
+          state.version = 5;
+          state.metadata = { ...state.metadata, ...(data.metadata || {}) };
+          state.bag = Array.isArray(data.bag) && data.bag.length ? data.bag : [...defaultBag];
+          state.activeHole = Number.isInteger(data.activeHole) ? Math.max(0, Math.min(17, data.activeHole)) : 0;
+          state.holes = data.holes.map((hole, index) => ({ ...defaultHole(index), ...hole, hole: index + 1 }));
+          setSaved();
+          renderAll();
+          switchTab("play");
+          alert("Round loaded.");
+        } catch (error) {
+          alert("That JSON file could not be loaded as a Golf Round Tracker v5 round.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function csvRows() {
+      const m = state.metadata;
+      const rows = [
+        ["course", m.course],
+        ["date", m.date],
+        ["tees", m.tees],
+        ["weather", m.weather],
+        ["target", m.target],
+        ["round_notes", m.notes],
+        [],
+        ["hole", "par", "distance", "score", "to_par", "putts", "penalties", "fairway", "gir", "tee_miss", "approach_result", "tee_club", "tee_shot_went_yards", "approach_club", "approach_from_yards", "approach_to_hole_feet", "short_game_type", "short_game_distance", "recovery_club", "up_and_down", "primary_mistake", "decision_note"]
+      ];
+      state.holes.forEach((h) => rows.push([
+        h.hole, h.par, h.distance, h.score, holeToPar(h) ?? "", h.putts, h.penalties, h.fir, h.gir, h.teeMiss, h.approachResult, h.teeClub, h.teeDistance, h.approachClub, h.approachDistance, h.approachProximity, h.shortGameType, h.shortGameDistance, h.recoveryClub, h.upDown, h.mistake, h.note
+      ]));
+      return rows.map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    }
+
+    function summaryText() {
+      const stats = summaryStats();
+      return [
+        `Course: ${state.metadata.course || "—"}`,
+        `Date: ${state.metadata.date || "—"}`,
+        `Tees: ${state.metadata.tees || "—"}`,
+        `Weather: ${state.metadata.weather || "—"}`,
+        `Target: ${state.metadata.target || "—"}`,
+        `Score: ${stats.score || 0}`,
+        `To par: ${stats.completed ? (stats.toPar === 0 ? "Even" : stats.toPar > 0 ? `+${stats.toPar}` : stats.toPar) : "—"}`,
+        `Fairways: ${formatPct(stats.firHits, stats.firEligible.length)}`,
+        `GIR: ${formatPct(stats.girHits, stats.girLogged.length)}`,
+        `Putts: ${stats.putts}`,
+        `Penalties: ${stats.penalties}`,
+        `Scrambling: ${formatPct(stats.upDowns, stats.shortAttempts.length)}`,
+        `Average tee shot: ${stats.teeDistances.length ? Math.round(stats.teeDistances.reduce((a, b) => a + b, 0) / stats.teeDistances.length) + " yards" : "—"}`,
+        `Average approach proximity: ${stats.approachProximities.length ? Math.round(stats.approachProximities.reduce((a, b) => a + b, 0) / stats.approachProximities.length) + " feet" : "—"}`,
+        `Round notes: ${state.metadata.notes || "—"}`
+      ].join("\n");
+    }
+
+    function openOtherScore() {
+      $("#otherScoreInput").value = state.holes[state.activeHole].score || "";
+      $("#otherScoreModal").classList.add("open");
+      document.body.classList.add("modal-open");
+      setTimeout(() => $("#otherScoreInput").focus(), 40);
+    }
+
+    function closeOtherScore() {
+      $("#otherScoreModal").classList.remove("open");
+      document.body.classList.remove("modal-open");
+    }
+
+    $("#saveOtherScore").addEventListener("click", () => {
+      const score = $("#otherScoreInput").value;
+      if (safeNum(score) <= 0) return;
+      state.holes[state.activeHole].score = String(score);
+      markDirty();
+      closeOtherScore();
+      renderAll();
+    });
+    $("#cancelOtherScore").addEventListener("click", closeOtherScore);
+    $("#closeScoreModal").addEventListener("click", closeOtherScore);
+    $("#otherScoreModal").addEventListener("click", (event) => {
+      if (event.target.id === "otherScoreModal") closeOtherScore();
+    });
+
+    $("#saveJsonBtn").addEventListener("click", saveJson);
+    $("#loadJsonBtn").addEventListener("click", () => $("#fileInput").click());
+    $("#fileInput").addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (file) loadJsonFile(file);
+      event.target.value = "";
+    });
+    $("#exportCsvBtn").addEventListener("click", () => downloadFile(roundFilename("csv"), csvRows(), "text/csv;charset=utf-8"));
+    $("#copySummaryBtn").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(summaryText());
+        alert("Summary copied.");
+      } catch {
+        alert("Clipboard copy was blocked. Use Save JSON or Export CSV instead.");
+      }
+    });
+
+    $("#newRoundBtn").addEventListener("click", () => {
+      if (state.dirty && !confirm("Start a new blank round? Unsaved changes will be lost unless you saved JSON.")) return;
+      state.metadata = { course: "", date: new Date().toISOString().slice(0, 10), tees: "", weather: "", target: "", notes: "" };
+      state.activeHole = 0;
+      state.holes = Array.from({ length: 18 }, (_, i) => defaultHole(i));
+      markDirty();
+      renderAll();
+    });
+
+    $("#newSameCourseBtn").addEventListener("click", () => {
+      if (state.dirty && !confirm("Start a new round with the same course setup? Unsaved changes will be lost unless you saved JSON.")) return;
+      const courseHoles = state.holes.map((h, i) => ({ par: h.par || defaultPars[i], distance: h.distance || "" }));
+      state.metadata = { ...state.metadata, date: new Date().toISOString().slice(0, 10), weather: "", target: "", notes: "" };
+      state.holes = Array.from({ length: 18 }, (_, i) => ({ ...defaultHole(i), ...courseHoles[i] }));
+      state.activeHole = 0;
+      markDirty();
+      renderAll();
+      switchTab("play");
+    });
+
+    $("#clearRoundBtn").addEventListener("click", () => {
+      if (!confirm("Clear all hole data for this round?")) return;
+      state.holes = Array.from({ length: 18 }, (_, i) => defaultHole(i));
+      state.activeHole = 0;
+      markDirty();
+      renderAll();
+    });
+
+    $("#sampleBtn").addEventListener("click", () => {
+      state.metadata = {
+        course: "Tournament Prep Club",
+        date: new Date().toISOString().slice(0, 10),
+        tees: "Blue",
+        weather: "68°, wind 9 mph",
+        target: "Commit to stock carry numbers",
+        notes: "Tempo held up well. Miss pattern drifted right with longer clubs."
+      };
+      const sample = [
+        { distance: "402", score: "5", putts: "2", penalties: "0", fir: "left", gir: "no", teeMiss: "left", approachResult: "left", teeClub: "Driver", teeDistance: "257", approachClub: "8i", approachDistance: "149", approachProximity: "42", shortGameType: "chip", shortGameDistance: "12", recoveryClub: "58°", upDown: "no", mistake: "approach", note: "Pulled 8i." },
+        { distance: "376", score: "4", putts: "1", penalties: "0", fir: "hit", gir: "yes", teeMiss: "center", approachResult: "pin", teeClub: "3W", teeDistance: "244", approachClub: "PW", approachDistance: "129", approachProximity: "9", shortGameType: "none", mistake: "none", note: "Best tempo." },
+        { distance: "188", score: "3", putts: "2", penalties: "0", fir: "n/a", gir: "yes", teeMiss: "", approachResult: "pin", teeClub: "6i", approachClub: "6i", approachDistance: "176", approachProximity: "24", shortGameType: "none", mistake: "none", note: "Center green." },
+        { distance: "521", score: "6", putts: "2", penalties: "1", fir: "right", gir: "no", teeMiss: "penalty", approachResult: "short", teeClub: "Driver", teeDistance: "268", approachClub: "5i", approachDistance: "176", approachProximity: "61", shortGameType: "pitch", shortGameDistance: "21", recoveryClub: "GW", upDown: "yes", mistake: "penalty", note: "Wrong club into wind." },
+        { distance: "411", score: "4", putts: "2", penalties: "0", fir: "hit", gir: "yes", teeMiss: "center", approachResult: "pin", teeClub: "Driver", teeDistance: "263", approachClub: "9i", approachDistance: "137", approachProximity: "18", shortGameType: "none", mistake: "none", note: "Routine par." }
+      ];
+      state.holes = Array.from({ length: 18 }, (_, i) => ({ ...defaultHole(i), ...(sample[i] || {}) }));
+      state.activeHole = 0;
+      markDirty();
+      renderAll();
+    });
+
+    window.addEventListener("beforeunload", (event) => {
+      if (!state.dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+
+    renderAll();
+  </script>
+</body>
+</html>
